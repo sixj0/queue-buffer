@@ -1,6 +1,7 @@
 package com.sixj.queuebuffer.util;
 
 import com.sixj.queuebuffer.factory.QueueBufferFactory;
+import org.springframework.util.StringUtils;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -113,7 +114,7 @@ public class FileUtils {
      * 获得工程的WebRoot根目录
      * @return String
      */
-    private static String getWebRootPath(Class clazz) {
+    public static String getWebRootPath(Class clazz) {
         try {
             // classes 目录的物理路径
             String classpath = getClasspath(clazz);
@@ -136,13 +137,15 @@ public class FileUtils {
         return "";
     }
 
-    public static String getQueueBufferFilePath(){
-        String webRootPath = getWebRootPath(QueueBufferFactory.class);
-        return webRootPath+File.separator+"queueTask.txt";
+    public static String getQueueBufferFilePath(String filepath){
+        if(StringUtils.isEmpty(filepath)){
+            filepath = getWebRootPath(QueueBufferFactory.class);
+        }
+        return filepath+File.separator+"queueTask.txt";
     }
 
 
     public static void main(String[] args) {
-        System.out.println(isFileExist(getQueueBufferFilePath()));
+        System.out.println(isFileExist(getQueueBufferFilePath(null)));
     }
 }

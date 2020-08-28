@@ -17,10 +17,13 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 
@@ -34,6 +37,22 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
 
     @Autowired
     private ThreadPoolExecutor threadPoolExecutor;
+    @Autowired
+    private Environment environment;
+
+    /** 当队列长度达到这个值时会触发消费，默认1000 */
+    @Value("${queue.buffer.numElements:1000}")
+    private Integer numElements;
+
+    /** 间隔这个时间会触发消费，单位为秒，默认10秒 */
+    @Value("${queue.buffer.timeout:10}")
+    private Integer timeout;
+
+    /**
+     * 数据持久化的文件地址，默认项目根目录
+     */
+    private String filepath = "";
+
 
     /** 任务缓冲队列 */
     private LinkedBlockingQueue<String> taskQueue = new LinkedBlockingQueue<>();
@@ -59,7 +78,7 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
         while (true) {
             try {
                 consumeDataList = new ArrayList<>();
-                int drain = drain(taskQueue, consumeDataList, 1000, 10, TimeUnit.SECONDS);
+                int drain = drain(taskQueue, consumeDataList, numElements, timeout, TimeUnit.SECONDS);
                 logger.info("消费数量：{}", drain);
                 if (!CollectionUtils.isEmpty(consumeDataList)) {
                     // 回调消费方法
@@ -116,18 +135,37 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        // 初始化任务缓冲队列
+        String capacity = environment.getProperty("queue.buffer.capacity");
+        logger.info("任务缓冲队列长度配置：{}",capacity);
+        if(StringUtils.isEmpty(capacity)){
+            //默认Integer.MAX_VALUE 2147483647
+            taskQueue = new LinkedBlockingQueue<>();
+        }else{
+            taskQueue = new LinkedBlockingQueue<>(Integer.valueOf(capacity.trim()));
+        }
+
+        // 读取持久化文件地址
+        String filepath = environment.getProperty("queue.buffer.persistence.filepath");
+        logger.info("持久化文件地址配置：{}",filepath);
+        if(!StringUtils.isEmpty(filepath)){
+            this.filepath = filepath.trim();
+        }
+
+        // 扫描消费者列表
         Map<String, QueueTaskConsumer> consumerMap = applicationContext.getBeansOfType(QueueTaskConsumer.class);
         logger.info("扫描消费者列表：{}",consumerMap);
         if (consumerMap.size() > 0) {
             consumerList.addAll(consumerMap.values());
         }
+
         // 扫描持久化文件到任务队列
-        boolean fileExist = FileUtils.isFileExist(FileUtils.getQueueBufferFilePath());
+        boolean fileExist = FileUtils.isFileExist(FileUtils.getQueueBufferFilePath(filepath));
         if(fileExist){
-            List<String> dataList = FileUtils.readFileContent(FileUtils.getQueueBufferFilePath());
+            List<String> dataList = FileUtils.readFileContent(FileUtils.getQueueBufferFilePath(filepath));
             taskQueue.addAll(dataList);
             // 清空持久化的数据
-            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(),"",false);
+            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(filepath),"",false);
         }
 
     }
@@ -141,10 +179,10 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
 
         // 将任务队列中积压的任务持久化到本地文件
         for (String data : taskQueue) {
-            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(),data,true);
+            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(filepath),data,true);
         }
         for (String data : consumeDataList) {
-            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(),data,true);
+            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(filepath),data,true);
         }
     }
 }
