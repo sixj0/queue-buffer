@@ -144,6 +144,16 @@ public class FileUtils {
         return filepath+File.separator+"queueTask.txt";
     }
 
+    /**
+     * 删除文件
+     * @param filepath
+     */
+    public static void deleteFile(String filepath){
+        File file = new File(filepath);
+        if(file.exists()){
+            file.delete();
+        }
+    }
 
     public static void main(String[] args) {
         System.out.println(isFileExist(getQueueBufferFilePath(null)));

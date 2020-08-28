@@ -5,6 +5,7 @@ import com.sixj.queuebuffer.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
@@ -163,9 +165,11 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
         boolean fileExist = FileUtils.isFileExist(FileUtils.getQueueBufferFilePath(filepath));
         if(fileExist){
             List<String> dataList = FileUtils.readFileContent(FileUtils.getQueueBufferFilePath(filepath));
+            // 过滤空字符串
+            dataList = dataList.stream().filter(data->!StringUtils.isEmpty(data)).collect(Collectors.toList());
             taskQueue.addAll(dataList);
             // 清空持久化的数据
-            FileUtils.fileLinesWrite(FileUtils.getQueueBufferFilePath(filepath),"",false);
+            FileUtils.deleteFile(FileUtils.getQueueBufferFilePath(filepath));
         }
 
     }
