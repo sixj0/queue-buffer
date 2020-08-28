@@ -1,14 +1,15 @@
 package com.sixj.queuebuffer.factory;
 
-import com.google.common.collect.Queues;
 import com.sixj.queuebuffer.consumer.QueueTaskConsumer;
 import com.sixj.queuebuffer.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -58,16 +59,37 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
         while (true) {
             try {
                 consumeDataList = new ArrayList<>();
-                int drain = Queues.drain(taskQueue, consumeDataList, 1000, 10, TimeUnit.SECONDS);
+                int drain = drain(taskQueue, consumeDataList, 1000, 10, TimeUnit.SECONDS);
                 logger.info("消费数量：{}", drain);
                 if (!CollectionUtils.isEmpty(consumeDataList)) {
                     // 回调消费方法
-                    threadPoolExecutor.submit(()-> callBackConsume(consumeDataList));
+                    callBackConsume(consumeDataList);
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    private static <E> int drain( BlockingQueue<E> q, Collection<? super E> buffer, int numElements, long timeout, TimeUnit unit) throws InterruptedException {
+        if ( buffer == null) {
+            throw new NullPointerException();
+        }
+
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        int added = 0;
+        while (added < numElements) {
+            added += q.drainTo(buffer, numElements - added);
+            if (added < numElements) {
+                E e = q.poll(deadline - System.nanoTime(), TimeUnit.NANOSECONDS);
+                if (e == null) {
+                    break;
+                }
+                buffer.add(e);
+                added++;
+            }
+        }
+        return added;
     }
 
     @PostConstruct
