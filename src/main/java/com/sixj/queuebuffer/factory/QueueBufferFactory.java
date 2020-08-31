@@ -113,10 +113,6 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
         return added;
     }
 
-    @PostConstruct
-    public void startListen(){
-        threadPoolExecutor.submit(this::queueListen);
-    }
 
 
     /**
@@ -171,6 +167,9 @@ public class QueueBufferFactory implements ApplicationContextAware, DisposableBe
             // 清空持久化的数据
             FileUtils.deleteFile(FileUtils.getQueueBufferFilePath(filepath));
         }
+
+        // 开启任务队列监听
+        threadPoolExecutor.submit(this::queueListen);
 
     }
 
